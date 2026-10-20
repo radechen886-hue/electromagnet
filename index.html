@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>電磁鐵探究實驗模擬器 - 電源模式對比版</title>
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", sans-serif; -webkit-tap-highlight-color: transparent; }
+    body { margin: 0; padding: 14px; background: #eef2f6; color: #1e293b; user-select: none; }
+    .container { max-width: 1120px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 18px 18px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.06); }
+    h1 { font-size: 19px; margin: 0 0 10px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+    .status-pill { font-size: 12px; background: #dbeafe; color: #1e40af; padding: 3px 8px; border-radius: 20px; font-weight: normal; }
+    
+    .notice-banner { 
+      background: #eff6ff; 
+      border: 1px solid #bfdbfe; 
+      border-left: 4px solid #2563eb; 
+      padding: 8px 12px; 
+      border-radius: 6px; 
+      font-size: 12.5px; 
+      color: #1e40af; 
+      margin-bottom: 12px; 
+    }
+
+    .main-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; }
+    @media (max-width: 860px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+
+    /* 模擬畫布區域 */
+    .canvas-panel { display: flex; flex-direction: column; align-items: center; }
+    canvas { 
+      background: #ffffff; 
+      border: 1.5px solid #cbd5e1; 
+      border-radius: 12px; 
+      width: 100%; 
+      max-width: 580px;
+      height: auto; 
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.02);
+      touch-action: none;
+      cursor: grab;
+    }
+    canvas:active { cursor: grabbing; }
+
+    /* 控制與數據面板 */
+    .control-panel { display: flex; flex-direction: column; gap: 12px; }
+    .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; }
+    .control-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+    label { font-size: 13px; font-weight: 700; color: #334155; display: block; margin-bottom: 4px; }
+    select { width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13.5px; background: #fff; outline: none; }
+    
+    .btn-group { display: flex; gap: 8px; margin-top: 8px; }
+    button { padding: 9px 12px; border-radius: 7px; font-weight: 600; font-size: 13.5px; border: none; cursor: pointer; transition: 0.2s; }
+    .btn-reset-pos { background: #2563eb; color: #fff; flex: 1.2; }
+    .btn-reset-pos:hover { background: #1d4ed8; }
+    .btn-clear-all { background: #e2e8f0; color: #475569; flex: 1; }
+    .btn-clear-all:hover { background: #cbd5e1; }
+
+    /* 數據表格 */
+    .table-wrapper { max-height: 200px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: center; }
+    th { background: #f1f5f9; color: #475569; padding: 6px; position: sticky; top: 0; z-index: 1; }
+    td { padding: 6px; border-bottom: 1px solid #f1f5f9; }
+    
+    .stats-card { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px 12px; }
+    .stats-card span { font-size: 12px; color: #1e40af; font-weight: 600; }
+    .stats-val { font-size: 20px; font-weight: 800; color: #1d4ed8; margin-top: 2px; }
+    .hint-bar { margin-top: 8px; font-size: 12.5px; color: #64748b; line-height: 1.4; }
+
+    /* 頁面最底部署名字樣 */
+    .footer-author {
+      margin-top: 18px;
+      padding-top: 12px;
+      border-top: 1px solid #e2e8f0;
+      text-align: center;
+      font-size: 13.5px;
+      color: #64748b;
+      letter-spacing: 0.5px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>
+    探究式電磁鐵實驗：多變因與電源特性對比
+    <span class="status-pill">支援平板觸控</span>
+  </h1>
+
+  <div class="notice-banner">
+    💡 <strong>探究提示：</strong>可切換「普通乾電池」與「穩壓直流電源」進行對比。乾電池具備內阻壓降效應，穩壓電源則能持續恆壓輸出。本模擬器僅提供探究概念，請以實際實驗數據為主。
+  </div>
+
+  <div class="main-grid">
+    <div class="canvas-panel">
+      <canvas id="simCanvas" width="580" height="520"></canvas>
+      <div class="hint-bar">👉 <strong>操作提示</strong>：在平板上按住電磁鐵<strong>往下拖曳至桌面吸附長鏈</strong>，再<strong>向上緩慢提起</strong>觀察斷裂極限。</div>
+    </div>
+
+    <div class="control-panel">
+      <div class="card">
+        <!-- 電源變因 -->
+        <div class="control-row">
+          <div>
+            <label for="powerType">電源種類：</label>
+            <select id="powerType">
+              <option value="battery">普通乾電池 (具內阻)</option>
+              <option value="regulated">穩壓直流電源 (無內阻)</option>
+            </select>
+          </div>
+          <div>
+            <label for="levelSelect" id="levelLabel">串聯數量 / 電壓：</label>
+            <select id="levelSelect">
+              <option value="2">2 顆電池 (約 3.0V)</option>
+              <option value="3">3 顆電池 (約 4.5V)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 線圈變因 -->
+        <div class="control-row">
+          <div>
+            <label for="wireType">線圈類型與半徑：</label>
+            <select id="wireType">
+              <option value="thin_small">細線圈・纏繞半徑小</option>
+              <option value="thick_small">粗線圈・纏繞半徑小</option>
+              <option value="thin_large">細線圈・纏繞半徑大</option>
+            </select>
+          </div>
+          <div>
+            <label for="turnsSelect">線圈圈數：</label>
+            <select id="turnsSelect">
+              <option value="30">30 圈</option>
+              <option value="50" selected>50 圈</option>
+              <option value="70">70 圈</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="btn-group">
+          <button id="resetPosBtn" class="btn-reset-pos">重製當前實驗位置</button>
+          <button id="clearBtn" class="btn-clear-all">清空數據紀錄</button>
+        </div>
+      </div>
+
+      <div class="card" style="flex: 1; display: flex; flex-direction: column;">
+        <label>實測數據記錄表：</label>
+        <div class="table-wrapper">
+          <table id="dataTable">
+            <thead>
+              <tr>
+                <th>試驗</th>
+                <th>變因條件 (電源 / 規格 / 線型 / 圈數)</th>
+                <th>實測吸附</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="stats-card" style="margin-top: 10px;">
+          <span>目前組合累積平均吸附量：</span>
+          <div id="statOutput" class="stats-val">- 支</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-author">
+    臺北市大安區龍安國民小學 自然教師陳勰宇設計
+  </div>
+</div>
+
+<script>
+  // 50圈、2顆電池 (3.0V) 基準實測數據
+  const BASELINE_DATA = {
+    thin_small: { name: "細線・小半徑", values: [18, 16, 15, 16, 14, 16, 13, 16, 14, 12], wireWidth: 2.3, coreRadius: 13, coilRadius: 18, color: "#d97706", unitRes: 0.045 },
+    thick_small: { name: "粗線・小半徑", values: [8, 8, 12, 10, 12, 11, 12, 11, 12, 11], wireWidth: 5.5, coreRadius: 13, coilRadius: 21, color: "#b45309", unitRes: 0.012 },
+    thin_large: { name: "細線・大半徑", values: [13, 7, 9, 7, 7, 8, 10, 9, 9, 8], wireWidth: 2.3, coreRadius: 13, coilRadius: 28, color: "#0284c7", unitRes: 0.070 }
+  };
+
+  const canvas = document.getElementById("simCanvas");
+  const ctx = canvas.getContext("2d");
+  const powerTypeSelect = document.getElementById("powerType");
+  const levelSelect = document.getElementById("levelSelect");
+  const levelLabel = document.getElementById("levelLabel");
+  const wireTypeSelect = document.getElementById("wireType");
+  const turnsSelect = document.getElementById("turnsSelect");
+  const resetPosBtn = document.getElementById("resetPosBtn");
+  const clearBtn = document.getElementById("clearBtn");
+  const dataTableBody = document.querySelector("#dataTable tbody");
+  const statOutput = document.getElementById("statOutput");
+
+  const TOTAL_CLIPS = 35;
+  const CLIP_PITCH = 13.5;
+  const CLIP_HEIGHT = 15;
+  const TABLE_Y = 440;
+  const MAGNET_X = 275;
+  const CORE_H = 140;
+  const MIN_MAGNET_Y = 60;
+  const MAX_MAGNET_Y = 285;
+
+  let magnetY = 120;
+  let isDragging = false;
+  let dragOffsetY = 0;
+  let isMagneticConnected = false;
+  let maxCapacity = 0;
+  let liftedCount = 0;
+  let hasRecordedCurrentRun = false;
+  let historyRecords = {};
+
+  // 更新電源規格下拉選單標籤與選項
+  function updateLevelOptions() {
+    const isBat = powerTypeSelect.value === "battery";
+    levelLabel.innerText = isBat ? "電池串聯數量：" : "設定輸出電壓：";
+    levelSelect.innerHTML = isBat 
+      ? `<option value="2">2 顆電池 (約 3.0V)</option><option value="3">3 顆電池 (約 4.5V)</option>`
+      : `<option value="2">3.0 V (等效 2 顆電壓)</option><option value="3">4.5 V (等效 3 顆電壓)</option>`;
+  }
+
+  // 雙物理核心計算吸附量
+  function calculateSampleCapacity(pType, countVal, typeKey, turns) {
+    const baseObj = BASELINE_DATA[typeKey];
+    const n = parseInt(countVal); // 2 或 3
+    const seedVal = baseObj.values[Math.floor(Math.random() * baseObj.values.length)];
+
+    if (pType === "battery") {
+      // 模式 1：普通乾電池（含內阻壓降）
+      if (turns === 50 && n === 2) return seedVal;
+
+      const V_base = 3.0;
+      const r_bat = 0.25;
+      const R_wire_base = 50 * baseObj.unitRes;
+      const I_base = V_base / (2 * r_bat + R_wire_base);
+      const MM_base = 50 * I_base;
+
+      const V_cur = n * 1.5;
+      const R_wire_cur = turns * baseObj.unitRes;
+      const I_cur = V_cur / (n * r_bat + R_wire_cur);
+      const MM_cur = turns * I_cur;
+
+      const satFactor = Math.tanh(MM_cur / 120) / Math.tanh(MM_base / 120);
+      let est = Math.round(seedVal * satFactor) + (Math.floor(Math.random() * 3) - 1);
+      return Math.max(3, Math.min(TOTAL_CLIPS, est));
+
+    } else {
+      // 模式 2：外接穩壓直流電源（理想恆壓源）
+      const voltRatio = (n * 1.5) / 3.0;
+      const turnsFactor = Math.pow(turns / 50, 0.65);
+      const rawGain = voltRatio * turnsFactor;
+      const effectiveGain = 1 + (rawGain - 1) * 0.88;
+
+      let est = Math.round(seedVal * effectiveGain) + (Math.floor(Math.random() * 3) - 1);
+      return Math.max(3, Math.min(TOTAL_CLIPS, est));
+    }
+  }
+
+  function getConditionKey() {
+    return `${powerTypeSelect.value}_${levelSelect.value}_${wireTypeSelect.value}_${turnsSelect.value}T`;
+  }
+
+  function getConditionName() {
+    const pName = powerTypeSelect.value === "battery" ? "乾電池" : "穩壓電源";
+    const lName = powerTypeSelect.value === "battery" ? `${levelSelect.value}顆` : `${levelSelect.value === "2" ? "3.0V" : "4.5V"}`;
+    const tName = BASELINE_DATA[wireTypeSelect.value].name;
+    return `[${pName}-${lName}] ${tName} / ${turnsSelect.value}圈`;
+  }
+
+  function getCanvasCoords(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    let clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
+    let clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY;
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+  }
+
+  function isHitMagnet(pos) {
+    const cfg = BASELINE_DATA[wireTypeSelect.value];
+    const width = Math.max(cfg.coilRadius * 2, 70);
+    return pos.x >= MAGNET_X - width / 2 - 15 && pos.x <= MAGNET_X + width / 2 + 15 &&
+           pos.y >= magnetY - 15 && pos.y <= magnetY + CORE_H + 15;
+  }
+
+  function handleStart(e) {
+    const pos = getCanvasCoords(e);
+    if (isHitMagnet(pos)) {
+      isDragging = true;
+      dragOffsetY = pos.y - magnetY;
+    }
+  }
+
+  function handleMove(e) {
+    if (!isDragging) return;
+    const pos = getCanvasCoords(e);
+    let targetY = Math.max(MIN_MAGNET_Y, Math.min(MAX_MAGNET_Y, pos.y - dragOffsetY));
+    magnetY = targetY;
+    const magnetBottomY = magnetY + CORE_H;
+
+    // 接觸長鏈觸發吸附
+    if (magnetBottomY >= TABLE_Y - 18) {
+      if (!isMagneticConnected) {
+        isMagneticConnected = true;
+        hasRecordedCurrentRun = false;
+        maxCapacity = calculateSampleCapacity(
+          powerTypeSelect.value,
+          levelSelect.value,
+          wireTypeSelect.value, 
+          parseInt(turnsSelect.value)
+        );
+      }
+    }
+
+    // 向上提升計算吸起長度
+    if (isMagneticConnected) {
+      const pulledHeight = (TABLE_Y - 15) - magnetBottomY;
+      if (pulledHeight > 0) {
+        const potentialClips = Math.floor(pulledHeight / CLIP_HEIGHT) + 1;
+        if (potentialClips <= maxCapacity) {
+          liftedCount = potentialClips;
+        } else {
+          // 臨界斷裂
+          liftedCount = maxCapacity;
+          if (!hasRecordedCurrentRun && liftedCount > 0) {
+            recordExperiment(getConditionKey(), liftedCount);
+            hasRecordedCurrentRun = true;
+          }
+        }
+      } else {
+        liftedCount = 0;
+      }
+    }
+    renderScene();
+  }
+
+  function handleEnd() {
+    if (isDragging) {
+      isDragging = false;
+      if (isMagneticConnected && !hasRecordedCurrentRun && liftedCount > 0) {
+        recordExperiment(getConditionKey(), liftedCount);
+        hasRecordedCurrentRun = true;
+      }
+    }
+  }
+
+  canvas.addEventListener("touchstart", handleStart, { passive: false });
+  canvas.addEventListener("touchmove", (e) => { e.preventDefault(); handleMove(e); }, { passive: false });
+  canvas.addEventListener("touchend", handleEnd, { passive: false });
+  canvas.addEventListener("touchcancel", handleEnd, { passive: false });
+  canvas.addEventListener("mousedown", handleStart);
+  window.addEventListener("mousemove", handleMove);
+  window.addEventListener("mouseup", handleEnd);
+
+  function drawPaperclip(x, y, orientation = "H") {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.strokeStyle = "#475569";
+    ctx.lineWidth = 1.7;
+    ctx.beginPath();
+    if (orientation === "H") {
+      ctx.ellipse(0, 0, 9.5, 4.2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(2, 0, 2.3, 0, Math.PI);
+      ctx.stroke();
+    } else {
+      ctx.ellipse(0, 0, 4.2, 9.5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, 2, 2.0, 0, Math.PI);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawPowerSource(magnetTopY, magnetBottomY, coilR) {
+    const isBat = powerTypeSelect.value === "battery";
+    const level = parseInt(levelSelect.value);
+
+    if (isBat) {
+      // 電池盒視覺
+      const batBoxX = 30;
+      const batBoxY = 180;
+      const batW = 28;
+      const batH = 70;
+
+      ctx.strokeStyle = "#334155";
+      ctx.lineWidth = 2.2;
+      ctx.strokeRect(batBoxX - 5, batBoxY - 5, batW * level + 6 * (level - 1) + 10, batH + 10);
+      ctx.fillStyle = "#cbd5e1";
+      ctx.fillRect(batBoxX - 5, batBoxY - 5, batW * level + 6 * (level - 1) + 10, batH + 10);
+
+      for (let i = 0; i < level; i++) {
+        const bx = batBoxX + i * (batW + 6);
+        ctx.fillStyle = "#1e293b";
+        ctx.fillRect(bx, batBoxY, batW, batH);
+        ctx.fillStyle = "#f59e0b";
+        ctx.fillRect(bx + 3, batBoxY + 12, batW - 6, batH - 24);
+        ctx.fillStyle = "#94a3b8";
+        ctx.fillRect(bx + batW / 2 - 3.5, batBoxY - 5, 7, 5);
+      }
+
+      ctx.strokeStyle = "#2563eb";
+      ctx.lineWidth = 2;
+
+      ctx.beginPath();
+      ctx.moveTo(batBoxX + batW / 2, batBoxY - 5);
+      ctx.bezierCurveTo(batBoxX + batW / 2, 90, MAGNET_X - coilR - 35, magnetTopY - 10, MAGNET_X - coilR, magnetTopY + 10);
+      ctx.stroke();
+
+      const lastBatRightX = batBoxX + (level - 1) * (batW + 6) + batW / 2;
+      ctx.beginPath();
+      ctx.moveTo(lastBatRightX, batBoxY + batH);
+      ctx.bezierCurveTo(lastBatRightX, TABLE_Y - 20, MAGNET_X - coilR - 35, magnetBottomY + 20, MAGNET_X - coilR, magnetBottomY - 10);
+      ctx.stroke();
+
+    } else {
+      // 穩壓電源供應器視覺
+      const psX = 22;
+      const psY = 170;
+      const psW = 105;
+      const psH = 100;
+
+      ctx.fillStyle = "#334155";
+      ctx.fillRect(psX, psY, psW, psH);
+      ctx.strokeStyle = "#1e293b";
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(psX, psY, psW, psH);
+
+      ctx.fillStyle = "#f8fafc";
+      ctx.font = "bold 9.5px sans-serif";
+      ctx.fillText("DC POWER SUPPLY", psX + 6, psY + 16);
+
+      ctx.fillStyle = "#0f172a";
+      ctx.fillRect(psX + 8, psY + 24, psW - 16, 28);
+      ctx.fillStyle = "#22c55e";
+      ctx.font = "bold 15px monospace";
+      ctx.fillText(level === 2 ? "3.0 V" : "4.5 V", psX + 22, psY + 44);
+
+      ctx.fillStyle = "#64748b";
+      ctx.beginPath();
+      ctx.arc(psX + 24, psY + 72, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      const redJackX = psX + 58;
+      const redJackY = psY + 72;
+      const blackJackX = psX + 85;
+      const blackJackY = psY + 72;
+
+      ctx.fillStyle = "#ef4444";
+      ctx.beginPath();
+      ctx.arc(redJackX, redJackY, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 9px sans-serif";
+      ctx.fillText("+", redJackX - 3, redJackY + 3);
+
+      ctx.fillStyle = "#0f172a";
+      ctx.beginPath();
+      ctx.arc(blackJackX, blackJackY, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.fillText("-", blackJackX - 2.5, blackJackY + 3);
+
+      ctx.strokeStyle = "#dc2626";
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(redJackX, redJackY);
+      ctx.bezierCurveTo(redJackX + 30, psY - 20, MAGNET_X - coilR - 35, magnetTopY - 10, MAGNET_X - coilR, magnetTopY + 10);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#1e293b";
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(blackJackX, blackJackY);
+      ctx.bezierCurveTo(blackJackX + 30, TABLE_Y - 20, MAGNET_X - coilR - 35, magnetBottomY + 20, MAGNET_X - coilR, magnetBottomY - 10);
+      ctx.stroke();
+    }
+  }
+
+  function drawElectromagnet(y, cfg) {
+    const cx = MAGNET_X;
+    const coreW = cfg.coreRadius * 2;
+    const coilW = cfg.coilRadius * 2;
+    const coilTop = y + 20;
+    const coilBottom = y + CORE_H - 20;
+    const turns = parseInt(turnsSelect.value);
+
+    // 頂部端蓋
+    ctx.fillStyle = "#475569";
+    ctx.fillRect(cx - coreW / 2 - 4, y - 6, coreW + 8, 6);
+
+    // 鐵芯柱主體
+    ctx.fillStyle = "#64748b";
+    ctx.fillRect(cx - coreW / 2, y, coreW, CORE_H);
+    ctx.fillStyle = "#475569";
+    ctx.fillRect(cx - coreW / 2 - 2, y + CORE_H - 5, coreW + 4, 5);
+
+    // 線圈依圈數密集呈現
+    ctx.strokeStyle = cfg.color;
+    ctx.lineWidth = cfg.wireWidth;
+    const visualLoops = turns === 30 ? 8 : (turns === 50 ? 13 : 18);
+    const step = (coilBottom - coilTop) / visualLoops;
+    for (let i = 0; i < visualLoops; i++) {
+      const cy = coilTop + i * step;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, coilW / 2, 3.8, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    drawPowerSource(coilTop, coilBottom, cfg.coilRadius);
+  }
+
+  function drawChainAndTable() {
+    ctx.strokeStyle = "#94a3b8";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(MAGNET_X - 35, TABLE_Y + 8);
+    ctx.lineTo(560, TABLE_Y + 8);
+    ctx.stroke();
+
+    const magnetBottomY = magnetY + CORE_H;
+
+    if (!isMagneticConnected || liftedCount === 0) {
+      for (let i = 0; i < TOTAL_CLIPS; i++) {
+        drawPaperclip(MAGNET_X + i * CLIP_PITCH, TABLE_Y, "H");
+      }
+    } else {
+      for (let i = 0; i < liftedCount; i++) {
+        const linkY = magnetBottomY + 10 + i * CLIP_HEIGHT;
+        if (linkY <= TABLE_Y) {
+          drawPaperclip(MAGNET_X, linkY, "V");
+          if (i > 0) {
+            ctx.strokeStyle = "#94a3b8";
+            ctx.beginPath();
+            ctx.moveTo(MAGNET_X, linkY - 7);
+            ctx.lineTo(MAGNET_X, linkY - 13);
+            ctx.stroke();
+          }
+        }
+      }
+      for (let i = liftedCount; i < TOTAL_CLIPS; i++) {
+        const hX = MAGNET_X + i * CLIP_PITCH;
+        drawPaperclip(hX, TABLE_Y, "H");
+      }
+    }
+  }
+
+  function renderScene() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const cfg = BASELINE_DATA[wireTypeSelect.value];
+    drawChainAndTable();
+    drawElectromagnet(magnetY, cfg);
+  }
+
+  function recordExperiment(condKey, count) {
+    if (!historyRecords[condKey]) historyRecords[condKey] = [];
+    historyRecords[condKey].push(count);
+
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>#${dataTableBody.children.length + 1}</td>
+      <td>${getConditionName()}</td>
+      <td><strong>${count} 支</strong></td>
+    `;
+    dataTableBody.prepend(row);
+    updateStatsDisplay();
+  }
+
+  function updateStatsDisplay() {
+    const curKey = getConditionKey();
+    const curList = historyRecords[curKey] || [];
+    if (curList.length === 0) {
+      statOutput.innerText = "- 支";
+    } else {
+      const avg = (curList.reduce((a, b) => a + b, 0) / curList.length).toFixed(2);
+      statOutput.innerText = `${avg} 支 (共 ${curList.length} 次)`;
+    }
+  }
+
+  function resetState() {
+    isDragging = false;
+    isMagneticConnected = false;
+    liftedCount = 0;
+    hasRecordedCurrentRun = false;
+    magnetY = 120;
+    updateStatsDisplay();
+    renderScene();
+  }
+
+  resetPosBtn.addEventListener("click", resetState);
+
+  clearBtn.addEventListener("click", () => {
+    historyRecords = {};
+    dataTableBody.innerHTML = "";
+    resetState();
+  });
+
+  powerTypeSelect.addEventListener("change", () => {
+    updateLevelOptions();
+    resetState();
+  });
+
+  levelSelect.addEventListener("change", resetState);
+  wireTypeSelect.addEventListener("change", resetState);
+  turnsSelect.addEventListener("change", resetState);
+
+  updateLevelOptions();
+  renderScene();
+</script>
+</body>
+</html>
